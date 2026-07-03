@@ -1,0 +1,43 @@
+services:
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://queue:queue@db:5432/queue
+      - WATCHFILES_FORCE_POLLING=true
+    volumes:
+      - ./app:/code/app
+      - ./worker:/code/worker
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: python -m worker.worker
+    environment:
+      - DATABASE_URL=postgresql://queue:queue@db:5432/queue
+    volumes:
+      - ./app:/code/app
+      - ./worker:/code/worker
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=queue
+      - POSTGRES_PASSWORD=queue
+      - POSTGRES_DB=queue
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queue -d queue"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
