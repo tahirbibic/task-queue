@@ -3,19 +3,16 @@ import os
 import asyncpg
 
 async def fetch_one_job(conn):
-    """
-    Find the oldest queued job, mark it running, and return it.
-    Returns the job row, or None if the queue is empty.
-    """
     row = await conn.fetchrow(
         """
         UPDATE jobs
         SET status = 'running', updated_at = now()
         WHERE id = (
-        SELECT id FROM jobs
-        WHERE status = 'queued'
-        ORDER BY id
-        LIMIT 1
+            SELECT id FROM jobs
+            WHERE status = 'queued'
+            ORDER BY id
+            -- add the locking clause here, then LIMIT 1
+            LIMIT 1
         )
         RETURNING id, task_name, payload
         """
@@ -24,10 +21,13 @@ async def fetch_one_job(conn):
 
 async def process(job):
     print(f"Processing job {job['id']}: {job['task_name']} {job['payload']}", flush=True)
-    await asyncio.sleep(1)
 
 async def main():
-    pool = await asyncpg.create_pool(os.environ["DATABASE_URL"])
+    pool = await asyncpg.create_pool(
+        os.environ["DATABASE_URL"],
+        min_size=1,
+        max_size=2,
+    )
     print("Worker started, waiting for jobs...", flush=True)
     while True:
         async with pool.acquire() as conn:
