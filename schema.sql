@@ -9,6 +9,7 @@ CREATE TABLE jobs (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_error  TEXT,
+    claimed_at  TIMESTAMPTZ
 );
 
 CREATE INDEX idx_jobs_claimable ON jobs (status, run_after, id);

@@ -41,3 +41,16 @@ services:
       interval: 2s
       timeout: 3s
       retries: 10
+      
+  reaper:
+    build: .
+    command: python -m reaper.reaper
+    environment:
+      - DATABASE_URL=postgresql://queue:queue@db:5432/queue
+    volumes:
+      - ./app:/code/app
+      - ./worker:/code/worker
+      - ./reaper:/code/reaper
+    depends_on:
+      db:
+        condition: service_healthy

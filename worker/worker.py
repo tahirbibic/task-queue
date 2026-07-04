@@ -7,11 +7,11 @@ async def fetch_one_job(conn):
     row = await conn.fetchrow(
         """
         UPDATE jobs
-        SET status = 'running', updated_at = now()
+        SET status = 'running', claimed_at = now(), updated_at = now()
         WHERE id = (
             SELECT id FROM jobs
             WHERE status = 'queued'
-              -- add: only claim jobs whose run_after time has arrived
+              AND run_after <= now()
             ORDER BY id
             FOR UPDATE SKIP LOCKED
             LIMIT 1
@@ -25,7 +25,7 @@ async def process(job):
     print(f"Processing job {job['id']}: {job['task_name']} (attempt {job['attempts'] + 1})", flush=True)
     if random.random() < 0.5:
         raise RuntimeError("simulated failure")
-    await asyncio.sleep(0.2)
+    await asyncio.sleep(30)
 
 async def mark_done(conn, job_id):
     await conn.execute(
@@ -64,7 +64,7 @@ async def main():
                 await mark_done(conn, job["id"])
             except Exception as e:
                 print(f"Job {job['id']} error: {e}", flush=True)
-                await mark_failed(conn, job)
+                await mark_failed(conn, job, e)
 
 if __name__ == "__main__":
     asyncio.run(main())
