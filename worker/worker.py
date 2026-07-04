@@ -25,7 +25,7 @@ async def process(job):
     print(f"Processing job {job['id']}: {job['task_name']} (attempt {job['attempts'] + 1})", flush=True)
     if random.random() < 0.5:
         raise RuntimeError("simulated failure")
-    await asyncio.sleep(30)
+    await asyncio.sleep(0.2)
 
 async def mark_done(conn, job_id):
     await conn.execute(
@@ -35,6 +35,24 @@ async def mark_done(conn, job_id):
 
 async def mark_failed(conn, job, error_msg):
     new_attempts = job["attempts"] + 1
+
+    if new_attempts >= job["max_attempts"]:
+        await conn.execute(
+        """
+        UPDATE jobs
+        SET status = 'dead',
+            attempts = $2,
+            last_error = $3,
+            updated_at = now()
+        WHERE id = $1
+        """,
+        job["id"],
+        new_attempts,
+            str(error_msg),
+        )
+        print(f"Job {job['id']} DEAD after {new_attempts} attempts: {error_msg}", flush=True)
+        return
+
     backoff_seconds = 2 ** (new_attempts - 1)
     await conn.execute(
         """
